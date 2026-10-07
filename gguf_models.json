@@ -60,6 +60,32 @@
         "top_k": 0,
         "pool_size": 4194304
       }
+    },
+    "Qwen3.6-27B-Uncensored-HauhauCS-Aggressive": {
+      "author": "HauhauCS",
+      "repo_name": "Qwen3.6-27B-Uncensored-HauhauCS-Aggressive",
+      "repo_id": "HauhauCS/Qwen3.6-27B-Uncensored-HauhauCS-Aggressive",
+      "mmproj_file": "mmproj-Qwen3.6-27B-Uncensored-HauhauCS-Aggressive-f16.gguf",
+      "model_files": [
+        "Qwen3.6-27B-Uncensored-HauhauCS-Aggressive-IQ2_M.gguf",
+        "Qwen3.6-27B-Uncensored-HauhauCS-Aggressive-IQ3_M.gguf",
+        "Qwen3.6-27B-Uncensored-HauhauCS-Aggressive-IQ3_XS.gguf",
+        "Qwen3.6-27B-Uncensored-HauhauCS-Aggressive-IQ4_XS.gguf",
+        "Qwen3.6-27B-Uncensored-HauhauCS-Aggressive-Q2_K_P.gguf",
+        "Qwen3.6-27B-Uncensored-HauhauCS-Aggressive-Q3_K_P.gguf",
+        "Qwen3.6-27B-Uncensored-HauhauCS-Aggressive-Q4_K_P.gguf",
+        "Qwen3.6-27B-Uncensored-HauhauCS-Aggressive-Q5_K_P.gguf",
+        "Qwen3.6-27B-Uncensored-HauhauCS-Aggressive-Q6_K_P.gguf",
+        "Qwen3.6-27B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf"
+      ],
+      "defaults": {
+        "context_length": 65536,
+        "image_max_tokens": 4096,
+        "n_batch": 512,
+        "gpu_layers": -1,
+        "top_k": 0,
+        "pool_size": 4194304
+      }
     }
   }
 }
