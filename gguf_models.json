@@ -1,24 +1,36 @@
 {
   "base_dir": "LLM/GGUF",
   "qwenVL_model": {
-    "Qwen3.6-35B-A3B-Uncensored-Genesis-Hermes-GGUF": {
-      "author": "LuffyTheFox",
-      "repo_name": "Qwen3.6-35B-A3B-Uncensored-Genesis-Hermes-GGUF",
-      "repo_id": "LuffyTheFox/Qwen3.6-35B-A3B-Uncensored-Genesis-Hermes-GGUF",
-      "mmproj_file": "mmproj-Hermes3.6-35B-A3B-Uncensored-Genesis-F16.gguf",
+    "Qwen3.8-27B-TWIN-TURBO-Fable-Cold-Fusion-709-ULTRA-HERETIC-Uncensored-NM-DAU-NEO-MTP-GGUF": {
+      "author": "DavidAU",
+      "repo_name": "Qwen3.8-27B-TWIN-TURBO-Fable-Cold-Fusion-709-ULTRA-HERETIC-Uncensored-NM-DAU-NEO-MTP-GGUF",
+      "repo_id": "DavidAU/Qwen3.8-27B-TWIN-TURBO-Fable-Cold-Fusion-709-ULTRA-HERETIC-Uncensored-NM-DAU-NEO-MTP-GGUF",
+      "mmproj_file": "mmproj-BF16.gguf",
       "model_files": [
-        "Hermes3.6-35B-A3B-Uncensored-Genesis-APEX-Compact.gguf",
-        "Hermes3.6-35B-A3B-Uncensored-Genesis-APEX.gguf",
-        "Hermes3.6-35B-A3B-Uncensored-Genesis-MTP-APEX-Compact.gguf",
-        "Hermes3.6-35B-A3B-Uncensored-Genesis-MTP-APEX.gguf",
-        "Hermes3.6-35B-A3B-Uncensored-Genesis-Q8_K_P.gguf"
+        "Qwen3.8-27B-TTURBO-Fable-C-Fusion-709-U-Httic-Uncen-NM-DAU-NEO-LOW-MTP-IQ4_XS.gguf",
+        "Qwen3.8-27B-TTURBO-Fable-C-Fusion-709-U-Httic-Uncen-NM-DAU-NEO-LOW-MTP-Q6_K.gguf",
+        "Qwen3.8-27B-TTURBO-Fable-C-Fusion-709-U-Httic-Uncen-NM-DAU-NEO-MAX-IQ3_M.gguf",
+        "Qwen3.8-27B-TTURBO-Fable-C-Fusion-709-U-Httic-Uncen-NM-DAU-NEO-MAX-IQ4_XS.gguf",
+        "Qwen3.8-27B-TTURBO-Fable-C-Fusion-709-U-Httic-Uncen-NM-DAU-NEO-MAX-MTP-IQ2_M.gguf",
+        "Qwen3.8-27B-TTURBO-Fable-C-Fusion-709-U-Httic-Uncen-NM-DAU-NEO-MAX-MTP-IQ3_M.gguf",
+        "Qwen3.8-27B-TTURBO-Fable-C-Fusion-709-U-Httic-Uncen-NM-DAU-NEO-MAX-MTP-IQ4_NL.gguf",
+        "Qwen3.8-27B-TTURBO-Fable-C-Fusion-709-U-Httic-Uncen-NM-DAU-NEO-MAX-MTP-IQ4_XS.gguf",
+        "Qwen3.8-27B-TTURBO-Fable-C-Fusion-709-U-Httic-Uncen-NM-DAU-NEO-MAX-MTP-Q4_K_M.gguf",
+        "Qwen3.8-27B-TTURBO-Fable-C-Fusion-709-U-Httic-Uncen-NM-DAU-NEO-MAX-MTP-Q4_K_S.gguf",
+        "Qwen3.8-27B-TTURBO-Fable-C-Fusion-709-U-Httic-Uncen-NM-DAU-NEO-MAX-MTP-Q5_K_M.gguf",
+        "Qwen3.8-27B-TTURBO-Fable-C-Fusion-709-U-Httic-Uncen-NM-DAU-NEO-MAX-MTP-Q5_K_S.gguf",
+        "Qwen3.8-27B-TTURBO-Fable-C-Fusion-709-U-Httic-Uncen-NM-DAU-NEO-MAX-MTP-Q6_K.gguf",
+        "Qwen3.8-27B-TTURBO-Fable-C-Fusion-709-U-Httic-Uncen-NM-DAU-NEO-MAX-MTP-Q8_0.gguf",
+        "Qwen3.8-27B-TTURBO-Fable-C-Fusion-709-U-Httic-Uncen-NM-DAU-NEO-MAX-Q4_K_M.gguf",
+        "Qwen3.8-27B-TTURBO-Fable-C-Fusion-709-U-Httic-Uncen-NM-DAU-NEO-MAX-Q6_K.gguf",
+        "Qwen3.8-27B-TTURBO-Fable-C-Fusion-709-U-Httic-Uncen-NM-DAU-NEO-MAX-Q8_0.gguf"
       ],
       "defaults": {
         "context_length": 65536,
         "image_max_tokens": 4096,
         "n_batch": 512,
         "gpu_layers": -1,
-        "top_k": 20,
+        "top_k": 0,
         "pool_size": 4194304
       }
     },

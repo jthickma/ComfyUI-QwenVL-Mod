@@ -321,38 +321,23 @@ See [Flash Attention 2 section](#-flash-attention-2-performance-boost) for detai
 
 ## **🧩 GGUF Nodes (llama.cpp backend)**
 
-### Genesis Hermes 35B-A3B
+### Qwen3.8 27B Twin Turbo Fable Cold Fusion 709
 
-[LuffyTheFox's Qwen3.6 Genesis Hermes](https://huggingface.co/LuffyTheFox/Qwen3.6-35B-A3B-Uncensored-Genesis-Hermes-GGUF)
-is registered in the shared GGUF catalog with all five published variants:
-APEX-Compact, APEX, MTP-APEX-Compact, MTP-APEX, and Q8_K_P.
+[DavidAU's Twin Turbo repository](https://huggingface.co/DavidAU/Qwen3.8-27B-TWIN-TURBO-Fable-Cold-Fusion-709-ULTRA-HERETIC-Uncensored-NM-DAU-NEO-MTP-GGUF)
+is registered in the shared GGUF catalog with all 17 published model files,
+preserving their exact filenames, including LOW-MTP, MAX-MTP, and regular MAX variants.
+Vision uses the repository's `mmproj-BF16.gguf` projector.
+
 Restart ComfyUI and refresh the browser, then select a filename beginning with
-`Hermes3.6-35B-A3B-Uncensored-Genesis-` (prefixed `GGUF: ` in Unified nodes).
-These entries are available to the GGUF/Unified vision nodes, Advanced nodes,
-GGUF/Unified Prompt Enhancer, and the GGUF backend in Qwen Chat.
+`Qwen3.8-27B-TTURBO-Fable-C-Fusion-709-` (prefixed `GGUF: ` in Unified nodes).
+The entries are available through GGUF/Unified vision nodes, Advanced nodes,
+GGUF/Unified Prompt Enhancer, and Qwen Chat. Selected weights and the vision
+projector download on first use; text-only Prompt Enhancer needs only the weights.
+Prompt Enhancer retains its generic Qwen template and existing presets.
 
-The selected weights download on first use. Vision and chat also download
-`mmproj-Hermes3.6-35B-A3B-Uncensored-Genesis-F16.gguf` for image and sampled-video-frame
-input; text-only Prompt Enhancer needs only the weights. Files share the directory
-`ComfyUI/models/LLM/GGUF/LuffyTheFox/Qwen3.6-35B-A3B-Uncensored-Genesis-Hermes-GGUF/`.
-Existing presets, custom prompts, camera/style controls, sampling controls,
-output cleaning, and model unloading apply as usual. Prompt Enhancer keeps its
-existing generic Qwen chat template.
-
-Use a `llama-cpp-python` build supporting the **qwen35moe** architecture, the chosen
-quantization, and a compatible Qwen vision handler/projector. A handler class being
-present alone does not prove that its native backend supports this architecture.
-The catalog uses the existing 65,536-token prompt-writing default; the publisher
-recommends at least 131,072 for thinking workflows, configurable in Advanced nodes
-or chat context settings when memory permits. APEX-Compact is approximately 17.4 GB
-plus a 0.9 GB projector and runtime/context memory, so partial CPU offload may be
-needed. MTP variants are selectable for ordinary inference; this integration does
-not enable MTP speculative decoding or native Hermes tool execution. Qwen Chat
-continues to use its existing validated workflow-action protocol.
-
-Model registration and routing can be tested without weights. Actual text, image,
-video-frame, and thinking inference must be smoke-tested in the target ComfyUI
-runtime with a compatible backend before treating that runtime as verified.
+These entries use the same runtime defaults as the existing DavidAU models.
+A compatible `llama-cpp-python` build is required; catalog registration does not
+verify live inference. Selecting an MTP file does not enable speculative decoding.
 
 This repo includes **GGUF** nodes powered by `llama-cpp-python` (separate from the Transformers-based nodes).
 
