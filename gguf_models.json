@@ -1,6 +1,27 @@
 {
   "base_dir": "LLM/GGUF",
   "qwenVL_model": {
+    "Qwen3.6-35B-A3B-Uncensored-Genesis-Hermes-GGUF": {
+      "author": "LuffyTheFox",
+      "repo_name": "Qwen3.6-35B-A3B-Uncensored-Genesis-Hermes-GGUF",
+      "repo_id": "LuffyTheFox/Qwen3.6-35B-A3B-Uncensored-Genesis-Hermes-GGUF",
+      "mmproj_file": "mmproj-Hermes3.6-35B-A3B-Uncensored-Genesis-F16.gguf",
+      "model_files": [
+        "Hermes3.6-35B-A3B-Uncensored-Genesis-APEX-Compact.gguf",
+        "Hermes3.6-35B-A3B-Uncensored-Genesis-APEX.gguf",
+        "Hermes3.6-35B-A3B-Uncensored-Genesis-MTP-APEX-Compact.gguf",
+        "Hermes3.6-35B-A3B-Uncensored-Genesis-MTP-APEX.gguf",
+        "Hermes3.6-35B-A3B-Uncensored-Genesis-Q8_K_P.gguf"
+      ],
+      "defaults": {
+        "context_length": 65536,
+        "image_max_tokens": 4096,
+        "n_batch": 512,
+        "gpu_layers": -1,
+        "top_k": 20,
+        "pool_size": 4194304
+      }
+    },
     "Qwen3.5-9B-Defiant-Fable-Heretic-GGUF": {
       "author": "DavidAU",
       "repo_name": "Qwen3.5-9B-The-Defiant-Fable-Uncensored-Heretic-NEO-IMATRIX-MAX-MTP-GGUF",

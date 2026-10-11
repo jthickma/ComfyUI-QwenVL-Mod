@@ -321,6 +321,39 @@ See [Flash Attention 2 section](#-flash-attention-2-performance-boost) for detai
 
 ## **🧩 GGUF Nodes (llama.cpp backend)**
 
+### Genesis Hermes 35B-A3B
+
+[LuffyTheFox's Qwen3.6 Genesis Hermes](https://huggingface.co/LuffyTheFox/Qwen3.6-35B-A3B-Uncensored-Genesis-Hermes-GGUF)
+is registered in the shared GGUF catalog with all five published variants:
+APEX-Compact, APEX, MTP-APEX-Compact, MTP-APEX, and Q8_K_P.
+Restart ComfyUI and refresh the browser, then select a filename beginning with
+`Hermes3.6-35B-A3B-Uncensored-Genesis-` (prefixed `GGUF: ` in Unified nodes).
+These entries are available to the GGUF/Unified vision nodes, Advanced nodes,
+GGUF/Unified Prompt Enhancer, and the GGUF backend in Qwen Chat.
+
+The selected weights download on first use. Vision and chat also download
+`mmproj-Hermes3.6-35B-A3B-Uncensored-Genesis-F16.gguf` for image and sampled-video-frame
+input; text-only Prompt Enhancer needs only the weights. Files share the directory
+`ComfyUI/models/LLM/GGUF/LuffyTheFox/Qwen3.6-35B-A3B-Uncensored-Genesis-Hermes-GGUF/`.
+Existing presets, custom prompts, camera/style controls, sampling controls,
+output cleaning, and model unloading apply as usual. Prompt Enhancer keeps its
+existing generic Qwen chat template.
+
+Use a `llama-cpp-python` build supporting the **qwen35moe** architecture, the chosen
+quantization, and a compatible Qwen vision handler/projector. A handler class being
+present alone does not prove that its native backend supports this architecture.
+The catalog uses the existing 65,536-token prompt-writing default; the publisher
+recommends at least 131,072 for thinking workflows, configurable in Advanced nodes
+or chat context settings when memory permits. APEX-Compact is approximately 17.4 GB
+plus a 0.9 GB projector and runtime/context memory, so partial CPU offload may be
+needed. MTP variants are selectable for ordinary inference; this integration does
+not enable MTP speculative decoding or native Hermes tool execution. Qwen Chat
+continues to use its existing validated workflow-action protocol.
+
+Model registration and routing can be tested without weights. Actual text, image,
+video-frame, and thinking inference must be smoke-tested in the target ComfyUI
+runtime with a compatible backend before treating that runtime as verified.
+
 This repo includes **GGUF** nodes powered by `llama-cpp-python` (separate from the Transformers-based nodes).
 
 - **Nodes**: `QwenVL (GGUF)`, `QwenVL (GGUF Advanced)`, `QwenVL Prompt Enhancer (GGUF)`
