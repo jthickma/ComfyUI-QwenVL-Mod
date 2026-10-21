@@ -7,6 +7,7 @@ import torch
 
 import AILab_QwenVL as _hf
 import AILab_QwenVL_GGUF as _gguf
+from qwenvl_custom import CUSTOM_SYSTEM_PROMPT_INPUT, vl_preset_options
 from qwenvl_presets import DURATION_OPTIONS, DEFAULT_DURATION
 
 
@@ -61,7 +62,7 @@ class QwenVL_Unified:
 
     @classmethod
     def INPUT_TYPES(cls):
-        prompts = PRESET_PROMPTS or ["IMG › Detailed"]
+        prompts = vl_preset_options(PRESET_PROMPTS)
         preferred = "IMG › Detailed"
         default_prompt = preferred if preferred in prompts else prompts[0]
         return {
@@ -70,7 +71,7 @@ class QwenVL_Unified:
                 "preset_prompt": (prompts, {"default": default_prompt, "tooltip": TOOLTIPS.get("preset_prompt", "")}),
                 "camera_tag": (CAMERA_TAG_OPTIONS, {"default": "None", "tooltip": CAMERA_TAG_TOOLTIP}),
                 "prompt": ("STRING", {"default": "", "multiline": True, "tooltip": TOOLTIPS.get("prompt", "")}),
-                "max_tokens": ("INT", {"default": 8192, "min": 64, "max": 8192, "tooltip": TOOLTIPS.get("max_tokens", "")}),
+                "max_tokens": ("INT", {"default": 8192, "min": 64, "max": 32000, "tooltip": TOOLTIPS.get("max_tokens", "")}),
                 "keep_model_loaded": ("BOOLEAN", {"default": False, "tooltip": TOOLTIPS.get("keep_model_loaded", "")}),
                 "seed": ("INT", {"default": 1, "min": 1, "max": 2**32 - 1, "tooltip": TOOLTIPS.get("seed", "")}),
                 "keep_last_prompt": ("BOOLEAN", {"default": False, "tooltip": "Keep the last generated prompt instead of creating a new one"}),
@@ -83,6 +84,7 @@ class QwenVL_Unified:
                 "video": ("IMAGE", {"tooltip": "Video frames input. Use frame_count to control how many frames are sampled."}),
                 "frame_count": ("INT", {"default": 16, "min": 1, "max": 64, "tooltip": TOOLTIPS.get("frame_count", "")}),
                 "duration": (DURATION_OPTIONS, {"default": DEFAULT_DURATION, "tooltip": "Clip length for duration-aware presets (MiniMax/LTX/Wan). Ignored by image presets."}),
+                "custom_system_prompt": CUSTOM_SYSTEM_PROMPT_INPUT,
             },
         }
 
@@ -108,6 +110,7 @@ class QwenVL_Unified:
         video=None,
         frame_count=16,
         duration=DEFAULT_DURATION,
+        custom_system_prompt="",
     ):
         if model_name.startswith(GGUF_PREFIX):
             m = model_name[len(GGUF_PREFIX):]
@@ -137,6 +140,7 @@ class QwenVL_Unified:
                 image3=image3,
                 video=video,
                 duration=duration,
+                custom_system_prompt=custom_system_prompt,
             )
 
         if model_name.startswith(HF_PREFIX):
@@ -167,6 +171,7 @@ class QwenVL_Unified:
             video=video,
             frame_count=frame_count,
             duration=duration,
+            custom_system_prompt=custom_system_prompt,
         )
 
 
@@ -175,7 +180,7 @@ class QwenVL_Unified_Advanced(QwenVL_Unified):
 
     @classmethod
     def INPUT_TYPES(cls):
-        prompts = PRESET_PROMPTS or ["IMG › Detailed"]
+        prompts = vl_preset_options(PRESET_PROMPTS)
         preferred = "IMG › Detailed"
         default_prompt = preferred if preferred in prompts else prompts[0]
         num_gpus = torch.cuda.device_count()
@@ -188,7 +193,7 @@ class QwenVL_Unified_Advanced(QwenVL_Unified):
                 "camera_tag": (CAMERA_TAG_OPTIONS, {"default": "None", "tooltip": CAMERA_TAG_TOOLTIP}),
                 "prompt": ("STRING", {"default": "", "multiline": True, "tooltip": TOOLTIPS.get("prompt", "")}),
                 "device": (device_options, {"default": "auto", "tooltip": TOOLTIPS.get("device", "")}),
-                "max_tokens": ("INT", {"default": 8192, "min": 64, "max": 8192, "tooltip": TOOLTIPS.get("max_tokens", "")}),
+                "max_tokens": ("INT", {"default": 8192, "min": 64, "max": 32000, "tooltip": TOOLTIPS.get("max_tokens", "")}),
                 "temperature": ("FLOAT", {"default": 0.6, "min": 0.0, "max": 2.0}),
                 "top_p": ("FLOAT", {"default": 0.9, "min": 0.0, "max": 1.0}),
                 "repetition_penalty": ("FLOAT", {"default": 1.0, "min": 0.5, "max": 2.0}),
@@ -216,6 +221,7 @@ class QwenVL_Unified_Advanced(QwenVL_Unified):
                 "image3": ("IMAGE", {"tooltip": "Third reference image (single image). For R2VA this is Picture 3 — subject (S3)."}),
                 "video": ("IMAGE", {"tooltip": "Video frames input. Use frame_count to control how many frames are sampled."}),
                 "duration": (DURATION_OPTIONS, {"default": DEFAULT_DURATION, "tooltip": "Clip length for duration-aware presets (MiniMax/LTX/Wan). Ignored by image presets."}),
+                "custom_system_prompt": CUSTOM_SYSTEM_PROMPT_INPUT,
             },
         }
 
@@ -250,6 +256,7 @@ class QwenVL_Unified_Advanced(QwenVL_Unified):
         image3=None,
         video=None,
         duration=DEFAULT_DURATION,
+        custom_system_prompt="",
     ):
         if model_name.startswith(GGUF_PREFIX):
             m = model_name[len(GGUF_PREFIX):]
@@ -279,6 +286,7 @@ class QwenVL_Unified_Advanced(QwenVL_Unified):
                 image3=image3,
                 video=video,
                 duration=duration,
+                custom_system_prompt=custom_system_prompt,
             )
 
         if model_name.startswith(HF_PREFIX):
@@ -309,6 +317,7 @@ class QwenVL_Unified_Advanced(QwenVL_Unified):
             video=video,
             frame_count=frame_count,
             duration=duration,
+            custom_system_prompt=custom_system_prompt,
         )
 
 

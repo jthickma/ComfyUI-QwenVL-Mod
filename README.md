@@ -404,6 +404,19 @@ The models will be automatically downloaded on first use. If you prefer to downl
 4. Write your prompt using the preset or custom field.  
 5. Run the workflow.
 
+### **Custom system prompt**
+
+The Unified and legacy VL nodes (basic and advanced, HF and GGUF) include a **`custom`** option in the existing **`preset_prompt`** dropdown.
+
+1. Select **`custom`**.
+2. Enter your system instructions in **`custom_system_prompt`** (the multiline field at the end of the node).
+3. Use **`prompt`** for the user message, and connect images or video as usual.
+4. Set **`max_tokens`** for the desired maximum response length, then run the workflow. Leave **`passthrough`** and **`keep_last_prompt`** off to invoke the model.
+
+Custom mode sends separate system and user messages directly to the model. It does not append preset text, expand wildcards, inject camera instructions, or apply preset output formatting. **`camera_tag`** and **`duration`** have no effect in this mode. The custom system prompt field is ignored when a built-in preset is selected.
+
+**Token budget:** Custom mode has a **32,000-token total input + output limit**, including the system prompt, user message, chat-template overhead, and image/video tokens. `max_tokens` is an output ceiling, not an additional allowance: HF reduces it to the remaining budget after encoding the input, while GGUF uses a context capped at 32,000 tokens and llama.cpp's remaining-context enforcement. Oversized inputs are rejected rather than silently truncated. A smaller model context or advanced GGUF `ctx` setting can lower the available budget. The output slider supports up to 32,000 tokens; its default remains 8,192.
+
 ### **Advanced Usage**
 
 For more control, use the **"QwenVL (Advanced)"** node. This gives you access to detailed generation parameters like temperature, top\_p, beam search, and device selection.

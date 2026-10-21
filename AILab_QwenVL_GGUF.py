@@ -38,6 +38,7 @@ from PIL import Image
 # Import cache functions from main module
 sys.path.append(str(Path(__file__).parent))
 from AILab_QwenVL import PROMPT_CACHE, ensure_cuda_vram_headroom, get_cache_key, get_alternative_cache_key, get_image_hash, get_video_hash, save_prompt_cache, CAMERA_TAG_OPTIONS, CAMERA_TAG_TOOLTIP, CAMERA_TAG_DESCRIPTIONS, add_danbooru_guidance, camera_directive_location
+from qwenvl_custom import CUSTOM_SYSTEM_PROMPT_INPUT, vl_preset_options
 from qwenvl_presets import (
     VL_PRESET_NAMES, VL_PROMPTS, VL_DURATIONS,
     DURATION_OPTIONS, DEFAULT_DURATION, resolve_vl_preset,
@@ -757,6 +758,7 @@ class QwenVLGGUFBase:
         seed: int,
         model_name: str = "",
         enable_thinking: bool = False,
+        raw_output: bool = False,
     ) -> str:
         ensure_cuda_vram_headroom("QwenVL GGUF", min_free_gb=1.0, min_free_ratio=0.08)
         if self.llm is not None and hasattr(self.llm, "reset"):
@@ -813,6 +815,8 @@ class QwenVLGGUFBase:
                 print(f"[QwenVL] Tokens: completion={completion_tokens}, time={elapsed:.2f}s, speed={tok_s:.2f} tok/s")
 
         content = (result.get("choices") or [{}])[0].get("message", {}).get("content", "")
+        if raw_output:
+            return str(content or "").strip()
         cleaned = clean_model_output(str(content or ""), OutputCleanConfig(mode="text"))
         return cleaned.strip()
 
@@ -843,6 +847,7 @@ class QwenVLGGUFBase:
         image2=None,
         image3=None,
         duration=DEFAULT_DURATION,
+        custom_system_prompt="",
     ):
         print(f"[QwenVL GGUF DEBUG] Starting run with seed={seed}, keep_last_prompt={keep_last_prompt}")
 
@@ -850,7 +855,8 @@ class QwenVLGGUFBase:
 
         # Expand TagForge __wildcard__ tokens first — also in passthrough mode,
         # so raw tokens never reach the downstream prompt.
-        prompt = expand_wildcard_tokens(prompt or "")
+        is_custom = preset_prompt == "custom"
+        prompt = (prompt or "") if is_custom else expand_wildcard_tokens(prompt or "")
 
         # Passthrough mode: skip model loading entirely, return prompt as-is.
         if passthrough:
@@ -882,7 +888,8 @@ class QwenVLGGUFBase:
         video_hash = get_video_hash(video)
         # Combine image2/image3 and video hashes for backward-compatible cache key
         combined_hash = f"{image2_hash or ''}/{image3_hash or ''}/{video_hash or ''}" if (image2_hash or image3_hash or video_hash) else None
-        cache_key = get_cache_key(model_name, preset_key, prompt, image_hash, combined_hash, int(seed))
+        cache_preset = f"custom:{custom_system_prompt}:{max_tokens}" if is_custom else preset_key
+        cache_key = get_cache_key(model_name, cache_preset, prompt, image_hash, combined_hash, int(seed))
 
         # TEMPORARILY DISABLED CACHE FOR DEBUGGING
         # Check cache first (only for random mode)
@@ -914,7 +921,7 @@ class QwenVLGGUFBase:
                 if f"[{tag}]" in upper:
                     found_cam_tag = tag
                     break
-        if found_cam_tag:
+        if found_cam_tag and not is_custom:
             desc = CAMERA_TAG_DESCRIPTIONS.get(found_cam_tag, "")
             tag_str = f"[{found_cam_tag}]"
             prefix = f"{tag_str}\n\n"
@@ -933,6 +940,13 @@ class QwenVLGGUFBase:
                 f"═══ END DIRECTIVE ═══"
             )
             full_prompt = prefix + full_prompt + reminder
+
+        if is_custom:
+            full_prompt = prompt
+            # llama.cpp accounts for chat-template and image tokens and clamps
+            # completion length to the remaining context (or rejects oversized input).
+            ctx = min(int(ctx or 32000), 32000)
+            max_tokens = min(int(max_tokens), ctx)
 
         print(f"[QwenVL GGUF DEBUG] Final prompt: {full_prompt[:100]}...")
 
@@ -1004,12 +1018,13 @@ class QwenVLGGUFBase:
                 print("[QwenVL] Warning: images provided but this model entry has no mmproj_file; images will be ignored")
             print(f"[QwenVL GGUF DEBUG] Starting generation...")
             # Prepend /no_think for Qwen3.5 models (enable_thinking is deprecated in recent llama.cpp)
-            effective_prompt = ("/no_think\n" + full_prompt) if getattr(self, "is_qwen35", False) else full_prompt
+            effective_prompt = ("/no_think\n" + full_prompt) if getattr(self, "is_qwen35", False) and not is_custom else full_prompt
             text = self._invoke(
-                system_prompt=(
+                system_prompt=custom_system_prompt if is_custom else (
                     "You are a helpful vision-language assistant. "
                     "Answer directly with the final answer only. No <think> and no reasoning."
                 ),
+                raw_output=is_custom,
                 user_prompt=effective_prompt,
                 images_b64=images_b64 if self.chat_handler is not None else [],
                 max_tokens=max_tokens,
@@ -1020,7 +1035,8 @@ class QwenVLGGUFBase:
                 model_name=model_name,
             )
 
-            text = normalize_minimax_output(text, preset_prompt, has_image=image is not None, duration=duration)
+            if not is_custom:
+                text = normalize_minimax_output(text, preset_prompt, has_image=image is not None, duration=duration)
 
             print(f"[QwenVL GGUF DEBUG] Generation completed. Text length: {len(text) if text else 0}")
             print(f"[QwenVL GGUF DEBUG] Generated text: {text[:100] if text else 'EMPTY'}...")
@@ -1060,7 +1076,7 @@ class AILab_QwenVL_GGUF(QwenVLGGUFBase):
         model_keys = sorted([key for key, entry in all_models.items() if (entry or {}).get("mmproj_filename")]) or ["(no GGUF VL models found)"]
         default_model = model_keys[0]
 
-        prompts = PRESET_PROMPTS or ["IMG › Detailed"]
+        prompts = vl_preset_options(PRESET_PROMPTS)
         preferred_prompt = "IMG › Detailed"
         default_prompt = preferred_prompt if preferred_prompt in prompts else prompts[0]
 
@@ -1069,7 +1085,7 @@ class AILab_QwenVL_GGUF(QwenVLGGUFBase):
                 "model_name": (model_keys, {"default": default_model}),
                 "preset_prompt": (prompts, {"default": default_prompt}),
                 "prompt": ("STRING", {"default": "", "multiline": True, "tooltip": "Additional user input that gets combined with the preset template. Leave empty to use only the template."}),
-                "max_tokens": ("INT", {"default": 8192, "min": 64, "max": 8192}),
+                "max_tokens": ("INT", {"default": 8192, "min": 64, "max": 32000}),
                 "keep_model_loaded": ("BOOLEAN", {"default": False}),
                 "seed": ("INT", {"default": 1, "min": 1, "max": 2**32 - 1}),
                 "keep_last_prompt": ("BOOLEAN", {"default": False, "tooltip": "Keep the last generated prompt instead of creating a new one"}),
@@ -1081,6 +1097,7 @@ class AILab_QwenVL_GGUF(QwenVLGGUFBase):
                 "image3": ("IMAGE", {"tooltip": "Third reference image (single image). For R2VA this is Picture 3."}),
                 "video": ("IMAGE", {"tooltip": "Video frames input. Use frame_count to control how many frames are sampled."}),
                 "duration": (DURATION_OPTIONS, {"default": DEFAULT_DURATION, "tooltip": "Clip length for duration-aware presets (MiniMax/LTX/Wan). Ignored by image presets."}),
+                "custom_system_prompt": CUSTOM_SYSTEM_PROMPT_INPUT,
             },
         }
 
@@ -1104,6 +1121,7 @@ class AILab_QwenVL_GGUF(QwenVLGGUFBase):
         image3=None,
         video=None,
         duration=DEFAULT_DURATION,
+        custom_system_prompt="",
     ):
         return self.run(
             model_name=model_name,
@@ -1115,6 +1133,7 @@ class AILab_QwenVL_GGUF(QwenVLGGUFBase):
             video=video,
             frame_count=16,
             duration=duration,
+            custom_system_prompt=custom_system_prompt,
             max_tokens=max_tokens,
             temperature=0.6,
             top_p=0.9,
@@ -1140,7 +1159,7 @@ class AILab_QwenVL_GGUF_Advanced(QwenVLGGUFBase):
         model_keys = sorted([key for key, entry in all_models.items() if (entry or {}).get("mmproj_filename")]) or ["(no GGUF VL models found)"]
         default_model = model_keys[0]
 
-        prompts = PRESET_PROMPTS or ["IMG › Detailed"]
+        prompts = vl_preset_options(PRESET_PROMPTS)
         preferred_prompt = "IMG › Detailed"
         default_prompt = preferred_prompt if preferred_prompt in prompts else prompts[0]
 
@@ -1155,7 +1174,7 @@ class AILab_QwenVL_GGUF_Advanced(QwenVLGGUFBase):
                 "preset_prompt": (prompts, {"default": default_prompt}),
                 "camera_tag": (CAMERA_TAG_OPTIONS, {"default": "None", "tooltip": CAMERA_TAG_TOOLTIP}),
                 "prompt": ("STRING", {"default": "", "multiline": True, "tooltip": "Additional user input that gets combined with the preset template. Leave empty to use only the template."}),
-                "max_tokens": ("INT", {"default": 8192, "min": 64, "max": 8192}),
+                "max_tokens": ("INT", {"default": 8192, "min": 64, "max": 32000}),
                 "temperature": ("FLOAT", {"default": 0.6, "min": 0.0, "max": 2.0}),
                 "top_p": ("FLOAT", {"default": 0.9, "min": 0.0, "max": 1.0}),
                 "repetition_penalty": ("FLOAT", {"default": 1.0, "min": 0.5, "max": 2.0}),
@@ -1177,6 +1196,7 @@ class AILab_QwenVL_GGUF_Advanced(QwenVLGGUFBase):
                 "image3": ("IMAGE", {"tooltip": "Third reference image (single image). For R2VA this is Picture 3."}),
                 "video": ("IMAGE", {"tooltip": "Video frames input. Use frame_count to control how many frames are sampled."}),
                 "duration": (DURATION_OPTIONS, {"default": DEFAULT_DURATION, "tooltip": "Clip length for duration-aware presets (MiniMax/LTX/Wan). Ignored by image presets."}),
+                "custom_system_prompt": CUSTOM_SYSTEM_PROMPT_INPUT,
             },
         }
 
@@ -1212,6 +1232,7 @@ class AILab_QwenVL_GGUF_Advanced(QwenVLGGUFBase):
         image3=None,
         video=None,
         duration=DEFAULT_DURATION,
+        custom_system_prompt="",
     ):
         return self.run(
             model_name=model_name,
@@ -1223,6 +1244,7 @@ class AILab_QwenVL_GGUF_Advanced(QwenVLGGUFBase):
             video=video,
             frame_count=frame_count,
             duration=duration,
+            custom_system_prompt=custom_system_prompt,
             max_tokens=max_tokens,
             temperature=temperature,
             top_p=top_p,

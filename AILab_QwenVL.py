@@ -28,6 +28,7 @@ from transformers import AutoProcessor, AutoTokenizer, BitsAndBytesConfig
 
 from chat_service import normalize_minimax_output
 from wildcard_util import expand_wildcard_tokens
+from qwenvl_custom import CUSTOM_SYSTEM_PROMPT_INPUT, vl_preset_options, remaining_custom_tokens
 from qwenvl_presets import (
     VL_PRESET_NAMES, VL_PROMPTS, VL_DURATIONS,
     DURATION_OPTIONS, DEFAULT_DURATION, resolve_vl_preset,
@@ -954,6 +955,7 @@ class QwenVLBase:
         model_name="",
         video=None,
         enable_thinking=False,
+        custom_system_prompt=None,
     ):
         # Memory optimization: clear cache before generation
         ensure_cuda_vram_headroom("QwenVL", min_free_gb=1.0, min_free_ratio=0.08)
@@ -1014,7 +1016,10 @@ class QwenVLBase:
 
         num_images = sum(1 for item in conversation[0]["content"] if item.get("type") == "image")
         print(f"[QwenVL] Total images passed to model: {num_images}")
-        conversation[0]["content"].append({"type": "text", "text": ("/no_think\n" if getattr(self, "is_qwen35", False) and not enable_thinking else "") + prompt_text})
+        conversation[0]["content"].append({"type": "text", "text": ("/no_think\n" if getattr(self, "is_qwen35", False) and not enable_thinking and custom_system_prompt is None else "") + prompt_text})
+
+        if custom_system_prompt is not None:
+            conversation.insert(0, {"role": "system", "content": custom_system_prompt})
 
         # --- Qwen3.5 Heretic Logic: Template ---
         is_qwen35 = getattr(self, "is_qwen35", False)
@@ -1032,12 +1037,17 @@ class QwenVLBase:
         
         # Process images more efficiently
         # All frames (image + video inputs) are now passed as individual images
-        images = [item["image"] for item in conversation[0]["content"] if item["type"] == "image"]
+        images = [item["image"] for item in conversation[-1]["content"] if item["type"] == "image"]
         videos = None  # no longer used — all frames are images
 
         # Use smaller batch size for memory efficiency
         processed = self.processor(text=chat, images=images or None, videos=videos, return_tensors="pt")
         
+        if custom_system_prompt is not None:
+            config = getattr(self.model.config, "text_config", self.model.config)
+            model_limit = getattr(config, "max_position_embeddings", None) or 32000
+            max_tokens = remaining_custom_tokens(processed["input_ids"].shape[-1], max_tokens, min(32000, model_limit))
+
         # Move to device more efficiently
         model_device = next(self.model.parameters()).device
         model_inputs = {
@@ -1076,7 +1086,7 @@ class QwenVLBase:
                 torch.cuda.empty_cache()
             
             # Retry with smaller max_tokens
-            reduced_tokens = max(256, max_tokens // 2)
+            reduced_tokens = max(1, max_tokens // 2)
             kwargs["max_new_tokens"] = reduced_tokens
             print(f"[QwenVL] Retrying with reduced tokens: {reduced_tokens}")
             
@@ -1097,14 +1107,15 @@ class QwenVLBase:
         text = self.tokenizer.decode(outputs[0, input_len:], skip_special_tokens=True)
         return text.strip()
 
-    def run(self, model_name, quantization, preset_prompt, prompt, image, image2, frame_count, max_tokens, temperature, top_p, num_beams, repetition_penalty, seed, keep_model_loaded, attention_mode, use_torch_compile, device, keep_last_prompt=False, camera_tag="None", video=None, passthrough=False, duration=DEFAULT_DURATION, image3=None):
+    def run(self, model_name, quantization, preset_prompt, prompt, image, image2, frame_count, max_tokens, temperature, top_p, num_beams, repetition_penalty, seed, keep_model_loaded, attention_mode, use_torch_compile, device, keep_last_prompt=False, camera_tag="None", video=None, passthrough=False, duration=DEFAULT_DURATION, image3=None, custom_system_prompt=""):
         torch.manual_seed(seed)
 
         global LAST_SAVED_PROMPT
 
         # Expand TagForge __wildcard__ tokens first — also in passthrough mode,
         # so raw tokens never reach the downstream prompt.
-        prompt = expand_wildcard_tokens(prompt or "")
+        is_custom = preset_prompt == "custom"
+        prompt = (prompt or "") if is_custom else expand_wildcard_tokens(prompt or "")
 
         # Passthrough mode: skip model loading entirely, return prompt as-is.
         # Used when the chat (or an external tool) already generated the final
@@ -1143,10 +1154,11 @@ class QwenVLBase:
         video_hash = get_video_hash(video)
         # Combine image2/image3 and video hashes for backward-compatible cache key
         combined_hash = f"{image2_hash or ''}/{image3_hash or ''}/{video_hash or ''}" if (image2_hash or image3_hash or video_hash) else None
-        cache_key = get_cache_key(model_name, preset_key, prompt, image_hash, combined_hash, seed)
+        cache_preset = f"custom:{custom_system_prompt}:{max_tokens}" if is_custom else preset_key
+        cache_key = get_cache_key(model_name, cache_preset, prompt, image_hash, combined_hash, seed)
         
         # Check cache first (only for random mode)
-        if cache_key in PROMPT_CACHE:
+        if not is_custom and cache_key in PROMPT_CACHE:
             cached_text = PROMPT_CACHE[cache_key].get("text", "")
             if cached_text:
                 print(f"[QwenVL] Using cached prompt for seed {seed}: {cache_key[:8]}...")
@@ -1181,7 +1193,7 @@ class QwenVLBase:
                 if f"[{tag}]" in upper:
                     found_cam_tag = tag
                     break
-        if found_cam_tag:
+        if found_cam_tag and not is_custom:
             desc = CAMERA_TAG_DESCRIPTIONS.get(found_cam_tag, "")
             tag_str = f"[{found_cam_tag}]"
             prefix = f"{tag_str}\n\n"
@@ -1200,6 +1212,9 @@ class QwenVLBase:
                 f"═══ END DIRECTIVE ═══"
             )
             full_prompt = prefix + full_prompt + reminder
+
+        if is_custom:
+            full_prompt = prompt
 
         self.load_model(
             model_name,
@@ -1223,9 +1238,11 @@ class QwenVLBase:
                 repetition_penalty,
                 model_name=model_name,
                 video=video,
+                custom_system_prompt=custom_system_prompt if is_custom else None,
             )
             
-            text = normalize_minimax_output(text, preset_prompt, has_image=image is not None, duration=duration)
+            if not is_custom:
+                text = normalize_minimax_output(text, preset_prompt, has_image=image is not None, duration=duration)
 
             # Validate output before caching — reject "ready/waiting" responses
             # that occur when the model treats the system prompt as a conversation
@@ -1262,7 +1279,7 @@ class AILab_QwenVL(QwenVLBase):
     def INPUT_TYPES(cls):
         models = list(HF_VL_MODELS.keys())
         default_model = models[0] if models else "Qwen3-VL-4B-Instruct"
-        prompts = PRESET_PROMPTS or ["Describe this image in detail."]
+        prompts = vl_preset_options(PRESET_PROMPTS)
         preferred_prompt = "IMG › Detailed"
         default_prompt = preferred_prompt if preferred_prompt in prompts else prompts[0]
         return {
@@ -1273,7 +1290,7 @@ class AILab_QwenVL(QwenVLBase):
                 "preset_prompt": (prompts, {"default": default_prompt, "tooltip": TOOLTIPS["preset_prompt"]}),
                 "camera_tag": (CAMERA_TAG_OPTIONS, {"default": "None", "tooltip": CAMERA_TAG_TOOLTIP}),
                 "prompt": ("STRING", {"default": "", "multiline": True, "tooltip": TOOLTIPS["prompt"]}),
-                "max_tokens": ("INT", {"default": 8192, "min": 64, "max": 8192, "tooltip": TOOLTIPS["max_tokens"]}),
+                "max_tokens": ("INT", {"default": 8192, "min": 64, "max": 32000, "tooltip": TOOLTIPS["max_tokens"]}),
                 "keep_model_loaded": ("BOOLEAN", {"default": False, "tooltip": TOOLTIPS["keep_model_loaded"]}),
                 "seed": ("INT", {"default": 1, "min": 1, "max": 2**32 - 1, "tooltip": TOOLTIPS["seed"] + "\n\n💡 Cache Info: Prompts are cached automatically. Use the same inputs (model, preset, custom prompt, image/image2/video) to reuse cached prompts and avoid regeneration.\n\n🔒 Fixed Seed Mode: Set seed = 1 to ignore image/image2/video changes and only use text-based caching. Perfect for keeping the same prompt regardless of media input variations."}),
                 "keep_last_prompt": ("BOOLEAN", {"default": False, "tooltip": "Keep the last generated prompt instead of creating a new one"}),
@@ -1286,6 +1303,7 @@ class AILab_QwenVL(QwenVLBase):
                 "video": ("IMAGE", {"tooltip": "Video frames input. Use frame_count to control how many frames are sampled."}),
                 "frame_count": ("INT", {"default": 16, "min": 1, "max": 64, "tooltip": TOOLTIPS["frame_count"]}),
                 "duration": (DURATION_OPTIONS, {"default": DEFAULT_DURATION, "tooltip": "Clip length for duration-aware presets (MiniMax/LTX/Wan). Ignored by image presets."}),
+                "custom_system_prompt": CUSTOM_SYSTEM_PROMPT_INPUT,
             },
         }
 
@@ -1294,15 +1312,15 @@ class AILab_QwenVL(QwenVLBase):
     FUNCTION = "process"
     CATEGORY = "🔮 QwenVL-Mod"
 
-    def process(self, model_name, quantization, preset_prompt, camera_tag, prompt, attention_mode, max_tokens, keep_model_loaded, seed, keep_last_prompt=False, passthrough=False, image=None, image2=None, image3=None, video=None, frame_count=16, duration=DEFAULT_DURATION):
-        return self.run(model_name, quantization, preset_prompt, prompt, image, image2, frame_count, max_tokens, 0.6, 0.9, 1, 1.2, seed, keep_model_loaded, attention_mode, False, "auto", keep_last_prompt, camera_tag, video=video, passthrough=passthrough, duration=duration, image3=image3)
+    def process(self, model_name, quantization, preset_prompt, camera_tag, prompt, attention_mode, max_tokens, keep_model_loaded, seed, keep_last_prompt=False, passthrough=False, image=None, image2=None, image3=None, video=None, frame_count=16, duration=DEFAULT_DURATION, custom_system_prompt=""):
+        return self.run(model_name, quantization, preset_prompt, prompt, image, image2, frame_count, max_tokens, 0.6, 0.9, 1, 1.2, seed, keep_model_loaded, attention_mode, False, "auto", keep_last_prompt, camera_tag, video=video, passthrough=passthrough, duration=duration, image3=image3, custom_system_prompt=custom_system_prompt)
 
 class AILab_QwenVL_Advanced(QwenVLBase):
     @classmethod
     def INPUT_TYPES(cls):
         models = list(HF_VL_MODELS.keys())
         default_model = models[0] if models else "Qwen3-VL-4B-Instruct"
-        prompts = PRESET_PROMPTS or ["Describe this image in detail."]
+        prompts = vl_preset_options(PRESET_PROMPTS)
         preferred_prompt = "IMG › Detailed"
         default_prompt = preferred_prompt if preferred_prompt in prompts else prompts[0]
 
@@ -1320,7 +1338,7 @@ class AILab_QwenVL_Advanced(QwenVLBase):
                 "preset_prompt": (prompts, {"default": default_prompt, "tooltip": TOOLTIPS["preset_prompt"]}),
                 "camera_tag": (CAMERA_TAG_OPTIONS, {"default": "None", "tooltip": CAMERA_TAG_TOOLTIP}),
                 "prompt": ("STRING", {"default": "", "multiline": True, "tooltip": TOOLTIPS["prompt"]}),
-                "max_tokens": ("INT", {"default": 8192, "min": 64, "max": 8192, "tooltip": TOOLTIPS["max_tokens"]}),
+                "max_tokens": ("INT", {"default": 8192, "min": 64, "max": 32000, "tooltip": TOOLTIPS["max_tokens"]}),
                 "temperature": ("FLOAT", {"default": 0.6, "min": 0.1, "max": 1.0, "tooltip": TOOLTIPS["temperature"]}),
                 "top_p": ("FLOAT", {"default": 0.9, "min": 0.0, "max": 1.0, "tooltip": TOOLTIPS["top_p"]}),
                 "num_beams": ("INT", {"default": 1, "min": 1, "max": 8, "tooltip": TOOLTIPS["num_beams"]}),
@@ -1337,6 +1355,7 @@ class AILab_QwenVL_Advanced(QwenVLBase):
                 "video": ("IMAGE", {"tooltip": "Video frames input. Use frame_count to control how many frames are sampled."}),
                 "frame_count": ("INT", {"default": 16, "min": 1, "max": 64, "tooltip": TOOLTIPS["frame_count"]}),
                 "duration": (DURATION_OPTIONS, {"default": DEFAULT_DURATION, "tooltip": "Clip length for duration-aware presets (MiniMax/LTX/Wan). Ignored by image presets."}),
+                "custom_system_prompt": CUSTOM_SYSTEM_PROMPT_INPUT,
             },
         }
 
@@ -1345,8 +1364,8 @@ class AILab_QwenVL_Advanced(QwenVLBase):
     FUNCTION = "process"
     CATEGORY = "🔮 QwenVL-Mod"
 
-    def process(self, model_name, quantization, attention_mode, use_torch_compile, device, preset_prompt, camera_tag, prompt, max_tokens, temperature, top_p, num_beams, repetition_penalty, keep_model_loaded, seed, keep_last_prompt, passthrough=False, image=None, image2=None, image3=None, video=None, frame_count=16, duration=DEFAULT_DURATION):
-        return self.run(model_name, quantization, preset_prompt, prompt, image, image2, frame_count, max_tokens, temperature, top_p, num_beams, repetition_penalty, seed, keep_model_loaded, attention_mode, use_torch_compile, device, keep_last_prompt, camera_tag, video=video, passthrough=passthrough, duration=duration, image3=image3)
+    def process(self, model_name, quantization, attention_mode, use_torch_compile, device, preset_prompt, camera_tag, prompt, max_tokens, temperature, top_p, num_beams, repetition_penalty, keep_model_loaded, seed, keep_last_prompt, passthrough=False, image=None, image2=None, image3=None, video=None, frame_count=16, duration=DEFAULT_DURATION, custom_system_prompt=""):
+        return self.run(model_name, quantization, preset_prompt, prompt, image, image2, frame_count, max_tokens, temperature, top_p, num_beams, repetition_penalty, seed, keep_model_loaded, attention_mode, use_torch_compile, device, keep_last_prompt, camera_tag, video=video, passthrough=passthrough, duration=duration, image3=image3, custom_system_prompt=custom_system_prompt)
 
 NODE_CLASS_MAPPINGS = {
     "AILab_QwenVL": AILab_QwenVL,
